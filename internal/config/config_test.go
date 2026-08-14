@@ -49,15 +49,15 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadCustom(t *testing.T) {
 	restore := writeEnv(t, `
-PROXY_ADDR=:7000
-PROXY_USERNAME=admin
-PROXY_PASSWORD=secret
+REDIS_PROXY_ADDR=:7000
+REDIS_PROXY_USERNAME=admin
+REDIS_PROXY_PASSWORD=secret
 REDIS_ADDR=redis.example.com:6379
 REDIS_USERNAME=app
 REDIS_PASSWORD=redis-secret
 REDIS_DB=2
-CONNECT_TIMEOUT=3s
-AUTH_TIMEOUT=10s
+REDIS_CONNECT_TIMEOUT=3s
+REDIS_AUTH_TIMEOUT=10s
 `)
 	defer restore()
 
@@ -80,10 +80,10 @@ AUTH_TIMEOUT=10s
 }
 
 func TestLoadMissingProxyPassword(t *testing.T) {
-	restore := writeEnv(t, "PROXY_PASSWORD=\n")
+	restore := writeEnv(t, "REDIS_PROXY_PASSWORD=\n")
 	defer restore()
 
-	// 空 PROXY_PASSWORD 会被默认值填充，因此不报错。
+	// 空 REDIS_PROXY_PASSWORD 会被默认值填充，因此不报错。
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

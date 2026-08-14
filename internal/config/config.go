@@ -47,9 +47,9 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		Proxy: ProxyConfig{
-			Addr:     getString(env, "PROXY_ADDR", ":6380"),
-			Username: getString(env, "PROXY_USERNAME", "proxy"),
-			Password: getString(env, "PROXY_PASSWORD", "proxy-password"),
+			Addr:     getString(env, "REDIS_PROXY_ADDR", ":6380"),
+			Username: getString(env, "REDIS_PROXY_USERNAME", "proxy"),
+			Password: getString(env, "REDIS_PROXY_PASSWORD", "proxy-password"),
 		},
 		Redis: RedisConfig{
 			Addr:     getString(env, "REDIS_ADDR", "127.0.0.1:6379"),
@@ -58,15 +58,15 @@ func Load() (*Config, error) {
 			DB:       getString(env, "REDIS_DB", "0"),
 		},
 		Connection: ConnectionConfig{
-			ConnectTimeout: getDuration(env, "CONNECT_TIMEOUT", 5*time.Second),
-			AuthTimeout:    getDuration(env, "AUTH_TIMEOUT", 5*time.Second),
-			ReadTimeout:    getDuration(env, "READ_TIMEOUT", 0),
-			WriteTimeout:   getDuration(env, "WRITE_TIMEOUT", 0),
+			ConnectTimeout: getDuration(env, "REDIS_CONNECT_TIMEOUT", 5*time.Second),
+			AuthTimeout:    getDuration(env, "REDIS_AUTH_TIMEOUT", 5*time.Second),
+			ReadTimeout:    getDuration(env, "REDIS_READ_TIMEOUT", 0),
+			WriteTimeout:   getDuration(env, "REDIS_WRITE_TIMEOUT", 0),
 		},
 	}
 
 	if cfg.Proxy.Password == "" {
-		return nil, fmt.Errorf("config: PROXY_PASSWORD is required")
+		return nil, fmt.Errorf("config: REDIS_PROXY_PASSWORD is required")
 	}
 	if cfg.Redis.Addr == "" {
 		return nil, fmt.Errorf("config: REDIS_ADDR is required")
@@ -77,10 +77,10 @@ func Load() (*Config, error) {
 		}
 	}
 	if cfg.Connection.ConnectTimeout < 0 {
-		return nil, fmt.Errorf("config: CONNECT_TIMEOUT must be >= 0")
+		return nil, fmt.Errorf("config: REDIS_CONNECT_TIMEOUT must be >= 0")
 	}
 	if cfg.Connection.AuthTimeout < 0 {
-		return nil, fmt.Errorf("config: AUTH_TIMEOUT must be >= 0")
+		return nil, fmt.Errorf("config: REDIS_AUTH_TIMEOUT must be >= 0")
 	}
 
 	return cfg, nil
