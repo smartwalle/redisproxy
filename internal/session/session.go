@@ -41,13 +41,11 @@ func (s *Session) Run() {
 	defer s.Close()
 
 	remote := s.Client.RemoteAddr().String()
-	log.Printf("session: client connected remote=%s", remote)
 
 	if err := s.authenticate(); err != nil {
 		log.Printf("session: auth failed remote=%s: %v", remote, err)
 		return
 	}
-	log.Printf("session: client authenticated remote=%s", remote)
 
 	if err := s.connectBackend(); err != nil {
 		log.Printf("session: backend connect failed remote=%s: %v", remote, err)
@@ -55,7 +53,6 @@ func (s *Session) Run() {
 		_, _ = io.WriteString(s.Client, "-ERR backend redis unavailable\r\n")
 		return
 	}
-	log.Printf("session: backend connected remote=%s backend=%s", remote, s.cfg.Redis.Addr)
 
 	s.relay()
 }

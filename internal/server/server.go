@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/smartwalle/redisproxy/internal/config"
 	"github.com/smartwalle/redisproxy/internal/session"
 )
 
-// Server 是代理的 TCP 服务器。
+// Server TCP 代理服务，实现 bootstrap.Server 接口。
 type Server struct {
 	Config   *config.Config
 	listener net.Listener
@@ -30,42 +27,29 @@ func New(cfg *config.Config) *Server {
 	return &Server{Config: cfg}
 }
 
-// Run 启动服务并等待退出信号，收到 SIGTERM/SIGINT 后优雅关闭。
-func (s *Server) Run() error {
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- s.Listen()
-	}()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
-
-	select {
-	case sig := <-sigCh:
-		log.Printf("server: received signal: %s", sig)
-	case err := <-errCh:
-		return err
-	}
-
-	// 优雅关闭，等待已有 Session 结束，最多 30 秒。
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	return s.Shutdown(ctx)
-}
-
-// Listen 监听 TCP 并循环 Accept，直到 Listener 关闭。
-func (s *Server) Listen() error {
+// Start 启动服务并阻塞运行，直到 ctx 被取消或发生错误。
+func (s *Server) Start(ctx context.Context) error {
 	ln, err := net.Listen("tcp", s.Config.Proxy.Addr)
 	if err != nil {
-		return fmt.Errorf("server: listen on %s: %w", s.Config.Proxy.Addr, err)
+		return fmt.Errorf("redis proxy server: listen on %s: %w", s.Config.Proxy.Addr, err)
 	}
 
 	s.mu.Lock()
 	s.listener = ln
 	s.mu.Unlock()
 
-	log.Printf("redis proxy listening on %s", s.Config.Proxy.Addr)
+	log.Printf("redis proxy server listening on %s", s.Config.Proxy.Addr)
+
+	// ctx 取消时关闭 listener，使 Accept 退出。
+	go func() {
+		<-ctx.Done()
+		s.mu.Lock()
+		ln := s.listener
+		s.mu.Unlock()
+		if ln != nil {
+			_ = ln.Close()
+		}
+	}()
 
 	for {
 		conn, err := ln.Accept()
@@ -77,11 +61,12 @@ func (s *Server) Listen() error {
 				return nil
 			}
 			// 临时错误则短暂等待后继续。
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Temporary() {
 				time.Sleep(time.Millisecond * 5)
 				continue
 			}
-			return fmt.Errorf("server: accept: %w", err)
+			return fmt.Errorf("redis proxy server: accept: %w", err)
 		}
 
 		s.wg.Add(1)
@@ -93,8 +78,8 @@ func (s *Server) Listen() error {
 	}
 }
 
-// Shutdown 停止 Accept 并等待已存在的 Session 结束，支持超时。
-func (s *Server) Shutdown(ctx context.Context) error {
+// Stop 停止 Accept 并等待已存在的 Session 结束，在 ctx 超时前完成清理。
+func (s *Server) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	s.closed = true
 	ln := s.listener
@@ -112,9 +97,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	select {
 	case <-done:
-		log.Printf("server: shutdown complete")
+		log.Printf("redis proxy server: stopped")
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("server: shutdown: %w", ctx.Err())
+		return fmt.Errorf("redis proxy server: stop: %w", ctx.Err())
 	}
 }
