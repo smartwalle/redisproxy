@@ -74,7 +74,7 @@ func (s *Session) authenticate() error {
 	// 认证阶段只允许 AUTH。
 	if len(args) == 0 || !equalFold(args[0], "AUTH") {
 		_, _ = io.WriteString(s.Client, "-NOAUTH Authentication required.\r\n")
-		return errors.New("session: authentication required")
+		return errors.New("authentication required")
 	}
 
 	var username, password string
@@ -89,7 +89,7 @@ func (s *Session) authenticate() error {
 		password = args[2]
 	default:
 		_, _ = io.WriteString(s.Client, "-ERR wrong number of arguments for 'auth' command\r\n")
-		return errors.New("session: wrong number of arguments for auth")
+		return errors.New("wrong number of arguments for auth")
 	}
 
 	if err := s.auth.Authenticate(username, password); err != nil {

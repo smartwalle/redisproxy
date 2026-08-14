@@ -28,7 +28,7 @@ func (a *StaticAuthenticator) Authenticate(username, password string) error {
 	userOK := subtle.ConstantTimeCompare([]byte(username), []byte(a.cfg.Username))
 	passOK := subtle.ConstantTimeCompare([]byte(password), []byte(a.cfg.Password))
 	if userOK != 1 || passOK != 1 {
-		return errors.New("auth: invalid username-password pair")
+		return errors.New("invalid username-password pair")
 	}
 	return nil
 }

@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/smartwalle/dotenv"
@@ -42,17 +41,17 @@ type ConnectionConfig struct {
 func Load() (*Config, error) {
 	env, err := dotenv.Load()
 	if err != nil {
-		return nil, fmt.Errorf("config: load .env: %w", err)
+		return nil, fmt.Errorf("load .env: %w", err)
 	}
 
 	cfg := &Config{
 		Proxy: ProxyConfig{
-			Addr:     getString(env, "REDIS_PROXY_ADDR", ":6380"),
-			Username: getString(env, "REDIS_PROXY_USERNAME", "proxy"),
-			Password: getString(env, "REDIS_PROXY_PASSWORD", "proxy-password"),
+			Addr:     env.Get("REDIS_PROXY_ADDR"),
+			Username: env.Get("REDIS_PROXY_USERNAME"),
+			Password: env.Get("REDIS_PROXY_PASSWORD"),
 		},
 		Redis: RedisConfig{
-			Addr:     getString(env, "REDIS_ADDR", "127.0.0.1:6379"),
+			Addr:     env.Get("REDIS_ADDR"),
 			Username: env.Get("REDIS_USERNAME"),
 			Password: env.Get("REDIS_PASSWORD"),
 			DB:       getString(env, "REDIS_DB", "0"),
@@ -65,22 +64,23 @@ func Load() (*Config, error) {
 		},
 	}
 
+	// 以下配置项无默认值，缺失必须报错。
+	if cfg.Proxy.Addr == "" {
+		return nil, fmt.Errorf("REDIS_PROXY_ADDR is required")
+	}
 	if cfg.Proxy.Password == "" {
-		return nil, fmt.Errorf("config: REDIS_PROXY_PASSWORD is required")
+		return nil, fmt.Errorf("REDIS_PROXY_PASSWORD is required")
 	}
 	if cfg.Redis.Addr == "" {
-		return nil, fmt.Errorf("config: REDIS_ADDR is required")
+		return nil, fmt.Errorf("REDIS_ADDR is required")
 	}
-	if cfg.Redis.DB != "" {
-		if n, err := strconv.Atoi(cfg.Redis.DB); err != nil || n < 0 {
-			return nil, fmt.Errorf("config: REDIS_DB must be a non-negative integer")
-		}
-	}
+
+	// 校验超时配置的合法性。
 	if cfg.Connection.ConnectTimeout < 0 {
-		return nil, fmt.Errorf("config: REDIS_CONNECT_TIMEOUT must be >= 0")
+		return nil, fmt.Errorf("REDIS_CONNECT_TIMEOUT must be >= 0")
 	}
 	if cfg.Connection.AuthTimeout < 0 {
-		return nil, fmt.Errorf("config: REDIS_AUTH_TIMEOUT must be >= 0")
+		return nil, fmt.Errorf("REDIS_AUTH_TIMEOUT must be >= 0")
 	}
 
 	return cfg, nil
