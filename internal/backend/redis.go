@@ -9,25 +9,23 @@ import (
 	"github.com/smartwalle/redisproxy/internal/protocol"
 )
 
-// Connector 负责建立到后端 Redis 的连接并完成认证与 DB 选择。
+// Connector 负责建立到后端 Redis 的连接并完成认证。
 type Connector struct {
 	addr     string
 	username string
 	password string
-	db       string
 }
 
 // NewConnector 创建后端连接器。
-func NewConnector(addr, username, password, db string) *Connector {
+func NewConnector(addr, username, password string) *Connector {
 	return &Connector{
 		addr:     addr,
 		username: username,
 		password: password,
-		db:       db,
 	}
 }
 
-// Connect 建立到后端 Redis 的连接，完成 AUTH 与 SELECT DB。
+// Connect 建立到后端 Redis 的连接，完成 AUTH。
 func (c *Connector) Connect(ctx context.Context, timeout time.Duration) (net.Conn, error) {
 	d := net.Dialer{Timeout: timeout}
 	conn, err := d.DialContext(ctx, "tcp", c.addr)
@@ -41,16 +39,9 @@ func (c *Connector) Connect(ctx context.Context, timeout time.Duration) (net.Con
 		defer func() { _ = conn.SetDeadline(time.Time{}) }()
 	}
 
-	if err := c.authenticate(conn); err != nil {
+	if err = c.authenticate(conn); err != nil {
 		_ = conn.Close()
 		return nil, err
-	}
-
-	if c.db != "" && c.db != "0" {
-		if err := c.selectDB(conn); err != nil {
-			_ = conn.Close()
-			return nil, err
-		}
 	}
 
 	return conn, nil
@@ -69,11 +60,6 @@ func (c *Connector) authenticate(conn net.Conn) error {
 		// 无认证 Redis，不发送 AUTH。
 		return nil
 	}
-}
-
-// selectDB 发送 SELECT 命令。
-func (c *Connector) selectDB(conn net.Conn) error {
-	return c.sendCommand(conn, "SELECT", c.db)
 }
 
 // sendCommand 编码并发送一条命令，然后读取 +OK 回复。

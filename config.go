@@ -26,15 +26,12 @@ type RedisConfig struct {
 	Addr     string
 	Username string
 	Password string
-	DB       string
 }
 
 // ConnectionConfig 连接相关超时配置。
 type ConnectionConfig struct {
 	ConnectTimeout time.Duration
 	AuthTimeout    time.Duration
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
 }
 
 // LoadConfig 从 .env 文件读取配置，缺失必要项时返回错误。
@@ -57,13 +54,10 @@ func LoadConfig(env *dotenv.Env) (*Config, error) {
 			Addr:     env.Get("REDIS_ADDR"),
 			Username: env.Get("REDIS_USERNAME"),
 			Password: env.Get("REDIS_PASSWORD"),
-			DB:       getString(env, "REDIS_DB", "0"),
 		},
 		Connection: ConnectionConfig{
-			ConnectTimeout: getDuration(env, "REDIS_CONNECT_TIMEOUT", 5*time.Second),
-			AuthTimeout:    getDuration(env, "REDIS_AUTH_TIMEOUT", 5*time.Second),
-			ReadTimeout:    getDuration(env, "REDIS_READ_TIMEOUT", 0),
-			WriteTimeout:   getDuration(env, "REDIS_WRITE_TIMEOUT", 0),
+			ConnectTimeout: env.EnsureDuration("REDIS_CONNECT_TIMEOUT", 5*time.Second),
+			AuthTimeout:    env.EnsureDuration("REDIS_AUTH_TIMEOUT", 5*time.Second),
 		},
 	}
 
@@ -87,20 +81,4 @@ func LoadConfig(env *dotenv.Env) (*Config, error) {
 	}
 
 	return cfg, nil
-}
-
-// getString 读取字符串，键不存在或为空时返回默认值。
-func getString(env *dotenv.Env, key, def string) string {
-	if v, ok := env.Lookup(key); ok && v != "" {
-		return v
-	}
-	return def
-}
-
-// getDuration 读取时长，键不存在或无法解析时返回默认值。
-func getDuration(env *dotenv.Env, key string, def time.Duration) time.Duration {
-	if v, ok := env.LookupDuration(key); ok && v > 0 {
-		return v
-	}
-	return def
 }

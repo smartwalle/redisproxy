@@ -38,7 +38,6 @@ func NewSession(client net.Conn, cfg *Config) *Session {
 			cfg.Redis.Addr,
 			cfg.Redis.Username,
 			cfg.Redis.Password,
-			cfg.Redis.DB,
 		),
 	}
 }
