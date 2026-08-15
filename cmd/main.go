@@ -4,18 +4,17 @@ import (
 	"log"
 
 	"github.com/smartwalle/bootstrap"
-	"github.com/smartwalle/redisproxy/internal/config"
-	"github.com/smartwalle/redisproxy/internal/server"
+	"github.com/smartwalle/redisproxy"
 )
 
 func main() {
-	cfg, err := config.Load()
+	cfg, err := redisproxy.LoadConfig()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
 
 	app := bootstrap.New(
-		bootstrap.WithServers(server.New(cfg)),
+		bootstrap.WithServers(redisproxy.New(cfg)),
 	)
 	if err = app.Run(); err != nil {
 		log.Fatalf("run application: %v", err)

@@ -1,4 +1,4 @@
-package session
+package redisproxy
 
 import (
 	"bufio"
@@ -12,7 +12,6 @@ import (
 
 	"github.com/smartwalle/redisproxy/internal/auth"
 	"github.com/smartwalle/redisproxy/internal/backend"
-	"github.com/smartwalle/redisproxy/internal/config"
 	"github.com/smartwalle/redisproxy/internal/protocol"
 )
 
@@ -21,18 +20,26 @@ type Session struct {
 	Client  net.Conn
 	Backend net.Conn
 
-	cfg       *config.Config
+	cfg       *Config
 	auth      auth.Authenticator
 	connector *backend.Connector
 }
 
-// New 创建会话。
-func New(client net.Conn, cfg *config.Config) *Session {
+// NewSession 创建会话。
+func NewSession(client net.Conn, cfg *Config) *Session {
 	return &Session{
-		Client:    client,
-		cfg:       cfg,
-		auth:      auth.NewStaticAuthenticator(cfg.Proxy),
-		connector: backend.NewConnector(cfg.Redis),
+		Client: client,
+		cfg:    cfg,
+		auth: auth.NewStaticAuthenticator(
+			cfg.Proxy.Username,
+			cfg.Proxy.Password,
+		),
+		connector: backend.NewConnector(
+			cfg.Redis.Addr,
+			cfg.Redis.Username,
+			cfg.Redis.Password,
+			cfg.Redis.DB,
+		),
 	}
 }
 
