@@ -96,13 +96,8 @@ func getString(env *dotenv.Env, key, def string) string {
 
 // getDuration 读取时长，键不存在或无法解析时返回默认值。
 func getDuration(env *dotenv.Env, key string, def time.Duration) time.Duration {
-	v, ok := env.Lookup(key)
-	if !ok || v == "" {
-		return def
+	if v, ok := env.LookupDuration(key); ok && v > 0 {
+		return v
 	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		return def
-	}
-	return d
+	return def
 }
