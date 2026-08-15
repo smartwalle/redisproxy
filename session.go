@@ -43,7 +43,12 @@ func NewSession(client net.Conn, cfg *Config) *Session {
 func (s *Session) Run() {
 	defer s.Close()
 
-	remote := s.Client.RemoteAddr().String()
+	remote := ""
+	if s.Client != nil && s.Client.RemoteAddr() != nil {
+		remote = s.Client.RemoteAddr().String()
+	}
+	log.Printf("session: new connection from %s", remote)
+	defer log.Printf("session: connection closed from %s", remote)
 
 	if err := s.authenticate(); err != nil {
 		log.Printf("session: auth failed remote=%s: %v", remote, err)
@@ -56,6 +61,8 @@ func (s *Session) Run() {
 		_, _ = io.WriteString(s.Client, "-ERR backend redis unavailable\r\n")
 		return
 	}
+
+	log.Printf("session: authenticated, backend connected, remote=%s", remote)
 
 	s.relay()
 }
