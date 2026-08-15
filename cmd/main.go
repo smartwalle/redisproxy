@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	cfg, err := redisproxy.LoadConfig()
+	cfg, err := redisproxy.LoadConfig(nil)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
