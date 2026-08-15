@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -34,11 +35,7 @@ func NewSession(client net.Conn, cfg *Config) *Session {
 			cfg.Proxy.Username,
 			cfg.Proxy.Password,
 		),
-		connector: backend.NewConnector(
-			cfg.Redis.Addr,
-			cfg.Redis.Username,
-			cfg.Redis.Password,
-		),
+		connector: backend.NewConnector(cfg.Redis.Addr),
 	}
 }
 
@@ -98,28 +95,65 @@ func (s *Session) authenticate() error {
 		return errors.New("wrong number of arguments for auth")
 	}
 
-	if err := s.auth.Authenticate(username, password); err != nil {
+	if err = s.auth.Authenticate(username, password); err != nil {
 		_, _ = io.WriteString(s.Client, "-WRONGPASS invalid username-password pair\r\n")
 		return err
 	}
 
-	if _, err := io.WriteString(s.Client, "+OK\r\n"); err != nil {
+	if _, err = io.WriteString(s.Client, "+OK\r\n"); err != nil {
 		return err
 	}
 	return nil
 }
 
-// connectBackend 建立后端 Redis 连接并完成认证与 DB 选择。
+// connectBackend 建立后端 Redis 连接并完成认证。
 func (s *Session) connectBackend() error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.Connection.ConnectTimeout)
 	defer cancel()
 
-	conn, err := s.connector.Connect(ctx, s.cfg.Connection.ConnectTimeout)
+	conn, err := s.connector.Connect(ctx)
 	if err != nil {
 		return err
 	}
 	s.Backend = conn
+
+	// 后端 AUTH 认证阶段使用 AUTH_TIMEOUT 独立起算，避免无限等待。
+	// 认证超时与连接超时相互独立。
+	if s.cfg.Connection.AuthTimeout > 0 {
+		_ = s.Backend.SetDeadline(time.Now().Add(s.cfg.Connection.AuthTimeout))
+		defer func() { _ = s.Backend.SetDeadline(time.Time{}) }()
+	}
+
+	if err = s.authenticateBackend(); err != nil {
+		_ = s.Backend.Close()
+		s.Backend = nil
+		return err
+	}
+
 	return nil
+}
+
+// authenticateBackend 根据配置向后端发送 AUTH 命令。
+func (s *Session) authenticateBackend() error {
+	switch {
+	case s.cfg.Redis.Username != "" && s.cfg.Redis.Password != "":
+		// AUTH username password
+		return s.sendBackendCommand("AUTH", s.cfg.Redis.Username, s.cfg.Redis.Password)
+	case s.cfg.Redis.Password != "":
+		// AUTH password
+		return s.sendBackendCommand("AUTH", s.cfg.Redis.Password)
+	default:
+		// 无认证 Redis，不发送 AUTH。
+		return nil
+	}
+}
+
+// sendBackendCommand 编码并发送一条命令给后端，然后读取 +OK 回复。
+func (s *Session) sendBackendCommand(args ...string) error {
+	if err := protocol.WriteCommand(s.Backend, args...); err != nil {
+		return fmt.Errorf("backend: write command: %w", err)
+	}
+	return protocol.ReadStatus(s.Backend)
 }
 
 // relay 双向转发数据。
