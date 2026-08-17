@@ -47,22 +47,22 @@ func (s *Session) Run() {
 	if s.Client != nil && s.Client.RemoteAddr() != nil {
 		remote = s.Client.RemoteAddr().String()
 	}
-	log.Printf("session: new connection from %s", remote)
-	defer log.Printf("session: connection closed from %s", remote)
+	log.Printf("redis session: new connection from %s", remote)
+	defer log.Printf("redis session: connection closed from %s", remote)
 
 	if err := s.authenticate(); err != nil {
-		log.Printf("session: auth failed remote=%s: %v", remote, err)
+		log.Printf("redis session: auth failed remote=%s: %v", remote, err)
 		return
 	}
 
 	if err := s.connectBackend(); err != nil {
-		log.Printf("session: backend connect failed remote=%s: %v", remote, err)
+		log.Printf("redis session: backend connect failed remote=%s: %v", remote, err)
 		// 不暴露后端细节，统一返回 backend redis unavailable。
 		_, _ = io.WriteString(s.Client, "-ERR backend redis unavailable\r\n")
 		return
 	}
 
-	log.Printf("session: authenticated, backend connected, remote=%s", remote)
+	log.Printf("redis session: authenticated, backend connected, remote=%s", remote)
 
 	s.relay()
 }
