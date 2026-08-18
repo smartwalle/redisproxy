@@ -24,6 +24,11 @@ type Session struct {
 	cfg       *Config
 	auth      auth.Authenticator
 	connector *backend.Connector
+
+	// clientReader 是认证阶段创建的缓冲读取器。
+	// 认证阶段可能预读并缓存了客户端后续命令（如 SELECT），
+	// 转发阶段必须继续使用它，否则已缓存的数据会丢失。
+	clientReader *bufio.Reader
 }
 
 // NewSession 创建会话。
@@ -75,8 +80,8 @@ func (s *Session) authenticate() error {
 		defer func() { _ = s.Client.SetReadDeadline(time.Time{}) }()
 	}
 
-	br := bufio.NewReader(s.Client)
-	args, err := protocol.ReadCommand(br)
+	s.clientReader = bufio.NewReader(s.Client)
+	args, err := protocol.ReadCommand(s.clientReader)
 	if err != nil {
 		return err
 	}
@@ -174,9 +179,11 @@ func (s *Session) relay() {
 	}
 
 	// 客户端 -> 后端。
+	// 必须从 clientReader 读，因为认证阶段可能已预读并缓存了客户端后续命令，
+	// 若改用 s.Client 直接读会丢失这些已缓存的数据。
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(s.Backend, s.Client)
+		_, _ = io.Copy(s.Backend, s.clientReader)
 		s.closeWrite(s.Backend)
 		closeBoth()
 	}()
