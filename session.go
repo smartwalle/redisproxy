@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -52,22 +52,22 @@ func (s *Session) Run() {
 	if s.Client != nil && s.Client.RemoteAddr() != nil {
 		remote = s.Client.RemoteAddr().String()
 	}
-	log.Printf("redis session: new connection from %s", remote)
-	defer log.Printf("redis session: connection closed from %s", remote)
+	slog.Info("redis session: new connection", "remote", remote)
+	defer slog.Info("redis session: connection closed", "remote", remote)
 
 	if err := s.authenticate(); err != nil {
-		log.Printf("redis session: auth failed remote=%s: %v", remote, err)
+		slog.Error("redis session: auth failed", "remote", remote, "error", err)
 		return
 	}
 
 	if err := s.connectBackend(); err != nil {
-		log.Printf("redis session: backend connect failed remote=%s: %v", remote, err)
+		slog.Error("redis session: backend connect failed", "remote", remote, "error", err)
 		// 不暴露后端细节，统一返回 backend redis unavailable。
 		_, _ = io.WriteString(s.Client, "-ERR backend redis unavailable\r\n")
 		return
 	}
 
-	log.Printf("redis session: authenticated, backend connected, remote=%s", remote)
+	slog.Info("redis session: authenticated", "remote", remote)
 
 	s.relay()
 }
