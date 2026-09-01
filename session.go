@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -21,9 +20,8 @@ type Session struct {
 	Client  net.Conn
 	Backend net.Conn
 
-	cfg       *Config
-	auth      auth.Authenticator
-	connector *backend.Connector
+	cfg  *Config
+	auth auth.Authenticator
 
 	// clientReader 是认证阶段创建的缓冲读取器。
 	// 认证阶段可能预读并缓存了客户端后续命令（如 SELECT），
@@ -40,7 +38,6 @@ func NewSession(client net.Conn, cfg *Config) *Session {
 			cfg.Proxy.Username,
 			cfg.Proxy.Password,
 		),
-		connector: backend.NewConnector(cfg.Redis.Addr),
 	}
 }
 
@@ -119,53 +116,22 @@ func (s *Session) authenticate() error {
 }
 
 // connectBackend 建立后端 Redis 连接并完成认证。
+//
+// 复用 backend.ConnectAndAuth 完成「TCP 连接 + AUTH 认证」流程。
 func (s *Session) connectBackend() error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.Connection.ConnectTimeout)
 	defer cancel()
 
-	conn, err := s.connector.Connect(ctx)
+	conn, err := backend.ConnectAndAuth(ctx, backend.AuthConfig{
+		Addr:     s.cfg.Redis.Addr,
+		Username: s.cfg.Redis.Username,
+		Password: s.cfg.Redis.Password,
+	})
 	if err != nil {
 		return err
 	}
 	s.Backend = conn
-
-	// 后端 AUTH 认证阶段使用 AUTH_TIMEOUT 独立起算，避免无限等待。
-	// 认证超时与连接超时相互独立。
-	if s.cfg.Connection.AuthTimeout > 0 {
-		_ = s.Backend.SetDeadline(time.Now().Add(s.cfg.Connection.AuthTimeout))
-		defer func() { _ = s.Backend.SetDeadline(time.Time{}) }()
-	}
-
-	if err = s.authenticateBackend(); err != nil {
-		_ = s.Backend.Close()
-		s.Backend = nil
-		return err
-	}
-
 	return nil
-}
-
-// authenticateBackend 根据配置向后端发送 AUTH 命令。
-func (s *Session) authenticateBackend() error {
-	switch {
-	case s.cfg.Redis.Username != "" && s.cfg.Redis.Password != "":
-		// AUTH username password
-		return s.sendBackendCommand("AUTH", s.cfg.Redis.Username, s.cfg.Redis.Password)
-	case s.cfg.Redis.Password != "":
-		// AUTH password
-		return s.sendBackendCommand("AUTH", s.cfg.Redis.Password)
-	default:
-		// 无认证 Redis，不发送 AUTH。
-		return nil
-	}
-}
-
-// sendBackendCommand 编码并发送一条命令给后端，然后读取 +OK 回复。
-func (s *Session) sendBackendCommand(args ...string) error {
-	if err := protocol.WriteCommand(s.Backend, args...); err != nil {
-		return fmt.Errorf("backend: write command: %w", err)
-	}
-	return protocol.ReadStatus(s.Backend)
 }
 
 // relay 双向转发数据。
